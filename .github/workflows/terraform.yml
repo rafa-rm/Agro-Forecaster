@@ -53,6 +53,9 @@ jobs:
         run: terraform plan -input=false
         env:
           # Maps GitHub Secret -> Terraform Variable
+          TF_VAR_github_name: ${{ secrets.TF_VAR_github_name }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_environment: ${{ secrets.TF_VAR_environment }}
           TF_VAR_agro_bucket_name: ${{ secrets.TF_VAR_agro_bucket_name }}
           TF_VAR_aws_region: ${{ secrets.TF_VAR_aws_region }}
 
@@ -62,5 +65,8 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false
         env:
+          TF_VAR_github_name: ${{ secrets.TF_VAR_github_name }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_environment: ${{ secrets.TF_VAR_environment }}
           TF_VAR_agro_bucket_name: ${{ secrets.TF_VAR_agro_bucket_name }}
           TF_VAR_aws_region: ${{ secrets.TF_VAR_aws_region }}
