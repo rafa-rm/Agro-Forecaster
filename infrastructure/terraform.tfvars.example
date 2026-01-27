@@ -1,0 +1,5 @@
+agro_bucket_name = "your-unique-bucket-name"
+aws_region = "sa-east-1"
+environment = "dev"
+github_name = "your-github-name"
+github_repo = "your-github-repo"

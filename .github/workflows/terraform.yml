@@ -1,0 +1,66 @@
+name: "Terraform Infrastructure Deploy"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**' # Only run when infra code changes
+      - 'src/**'            # Or when lambda code changes
+
+permissions:
+  id-token: write # Required for OIDC (AWS Authentication)
+  contents: read  # Required to checkout code
+
+jobs:
+  terraform:
+    name: "Terraform Apply"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./infrastructure # IMPORTANT: Points to your .tf files
+
+    steps:
+      # 1. Get the code
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. Login to AWS using OIDC (No keys!)
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.TF_VAR_aws_region }}
+
+      # 3. Install Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      # 4. Initialize (Connect to S3 Backend dynamically)
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET_NAME }}" \
+            -backend-config="key=agro-forecaster/terraform.tfstate" \
+            -backend-config="region=${{ secrets.TF_VAR_aws_region }}" \
+            -backend-config="encrypt=true"
+
+      # 5. Plan (Check what will happen)
+      - name: Terraform Plan
+        run: terraform plan -input=false
+        env:
+          # Maps GitHub Secret -> Terraform Variable
+          TF_VAR_agro_bucket_name: ${{ secrets.TF_VAR_agro_bucket_name }}
+          TF_VAR_aws_region: ${{ secrets.TF_VAR_aws_region }}
+
+      # 6. Apply (Deploy to Cloud)
+      # Only runs on 'main' branch
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve -input=false
+        env:
+          TF_VAR_agro_bucket_name: ${{ secrets.TF_VAR_agro_bucket_name }}
+          TF_VAR_aws_region: ${{ secrets.TF_VAR_aws_region }}
