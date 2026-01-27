@@ -3,7 +3,7 @@ resource "aws_s3_bucket" "agro_data_lake" {
 
   tags = {
     Environment = var.environment
-    Name        = "Agro Data Lake"
+    Name        = "Agro Data Lake (RAW)"
   }
 }
 
