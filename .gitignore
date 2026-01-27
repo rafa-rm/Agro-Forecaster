@@ -1,2 +1,28 @@
-.venv/*
-*.xls
+# --- Terraform ---
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl  
+terraform.tfvars
+backend.conf         
+config.tfvars
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*venv/
+.pytest_cache/
+
+# --- AWS / Local ---
+.aws/
+.DS_Store
+
+# --- Jupyter Notebooks ---
+*.ipynb
+
+# --- Generated Artifacts ---
+# Ignore the zip created by Terraform (Logic), but KEEP your layer zip
+infrastructure/get_commodity_data.zip
+
+# Python Layer
+src/python/*
