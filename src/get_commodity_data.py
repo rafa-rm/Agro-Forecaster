@@ -75,9 +75,6 @@ def process_historical_commodity_data(commodity_name: str, commodity_id: str) ->
 
         raw_commodity_data = pd.DataFrame(data, columns=headers)
         raw_commodity_data['Data'] = pd.to_datetime(raw_commodity_data['Data'], format='%d/%m/%Y', errors='coerce')
-        raw_commodity_data['year'] = raw_commodity_data['Data'].dt.year
-        raw_commodity_data['month'] = raw_commodity_data['Data'].dt.month
-        raw_commodity_data['day'] = raw_commodity_data['Data'].dt.day
 
 
         
@@ -90,13 +87,22 @@ def process_historical_commodity_data(commodity_name: str, commodity_id: str) ->
     #raw_s3_key = f"commodity={commodity_name}/{today_date}_raw.csv"
     
     bucket_name = os.environ['S3_BUCKET_NAME']
-    S3_PATH = f"s3://{bucket_name}/raw/{commodity_name}"
+    s3 = boto3.client('s3')
 
-    raw_commodity_data.to_parquet(
+    for index, row in raw_commodity_data.iterrows():
+        single_data = pd.DataFrame([row])
+        date_row = row['Data']
+        S3_PATH = f"s3://{bucket_name}/raw/{commodity_name}/" + f"year={date_row.year}/month={date_row.month}/day={date_row.day}/data.parquet"
+
+        out_buffer = BytesIO()
+        single_data.to_parquet(out_buffer, index=False, engine='fastparquet')
+
+        s3.put_object(Bucket=bucket_name, Key=S3_PATH, Body=out_buffer.getvalue())
+    '''raw_commodity_data.to_parquet(
         S3_PATH,
         partition_cols=['year', 'month', 'day'],  # <--- THIS DOES THE WORK
         compression='snappy'
-    )
+    )'''
     # Save raw data to S3
     '''try:
         s3 = boto3.client('s3')
