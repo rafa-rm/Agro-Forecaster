@@ -70,7 +70,10 @@ def process_historical_commodity_data(commodity_name: str, commodity_id: str) ->
         for row_idx in range(3, sheet.nrows):
             data.append(sheet.row_values(row_idx))
         
-        raw_commodity_data = pd.DataFrame(data)
+        headers = data[0]
+        data = data[1:]  
+
+        raw_commodity_data = pd.DataFrame(data, columns=headers)
         raw_commodity_data['Data'] = pd.to_datetime(raw_commodity_data['Data'], format='%d/%m/%Y', errors='coerce')
         raw_commodity_data['year'] = raw_commodity_data['Data'].dt.year
         raw_commodity_data['month'] = raw_commodity_data['Data'].dt.month
