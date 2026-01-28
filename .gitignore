@@ -22,7 +22,7 @@ __pycache__/
 
 # --- Generated Artifacts ---
 # Ignore the zip created by Terraform (Logic), but KEEP your layer zip
-infrastructure/get_commodity_data.zip
+infrastructure/*.zip
 
 # Python Layer
 src/python/*
