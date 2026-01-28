@@ -7,10 +7,12 @@ from bs4 import BeautifulSoup
 from io import BytesIO
 from datetime import datetime
 import xlrd
+from concurrent.futures import ThreadPoolExecutor
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 }
+MAX_WORKERS = 50  
 
 
 def get_cepea_historical_table_url(commodity_name: str, commodity_id: str) -> str:
@@ -34,6 +36,24 @@ def get_cepea_historical_table_url(commodity_name: str, commodity_id: str) -> st
     else:
         raise ValueError(f"Historical data table URL not found for {commodity_name}.")
 
+def upload_single_row(commodity_name: str, row):
+    bucket_name = os.environ['S3_BUCKET_NAME']
+    s3 = boto3.client('s3')
+    
+    single_data = pd.DataFrame([row])
+    date_row = row['Data']
+    S3_PATH = f"{bucket_name}/raw/{commodity_name}/" + f"year={date_row.year}/month={date_row.month}/day={date_row.day}/data.parquet"
+
+    out_buffer = BytesIO()
+    single_data.to_parquet(out_buffer, index=False, engine='fastparquet', compression='snappy')
+
+    s3.put_object(Bucket=bucket_name, Key=S3_PATH, Body=out_buffer.getvalue())
+
+    try:
+        s3.put_object(Bucket=bucket_name, Key=S3_PATH, Body=out_buffer.getvalue())
+        return f"✅ Uploaded {S3_PATH}"
+    except Exception as e:
+        return f"❌ Error {S3_PATH}: {str(e)}"
 
 def process_historical_commodity_data(commodity_name: str, commodity_id: str) -> bool:
     """
@@ -76,7 +96,6 @@ def process_historical_commodity_data(commodity_name: str, commodity_id: str) ->
         raw_commodity_data = pd.DataFrame(data, columns=headers)
         raw_commodity_data['Data'] = pd.to_datetime(raw_commodity_data['Data'], format='%d/%m/%Y', errors='coerce')
 
-
         
     except Exception as e:
         print(f"Error processing data for {commodity_name}: {e}")
@@ -86,23 +105,14 @@ def process_historical_commodity_data(commodity_name: str, commodity_id: str) ->
 
     #raw_s3_key = f"commodity={commodity_name}/{today_date}_raw.csv"
     
-    bucket_name = os.environ['S3_BUCKET_NAME']
-    s3 = boto3.client('s3')
+    rows_to_process = [row for _, row in raw_commodity_data.iterrows()]
+    
+    print(f"Starting parallel upload of {len(rows_to_process)} records for {commodity_name}...")
 
-    for index, row in raw_commodity_data.iterrows():
-        single_data = pd.DataFrame([row])
-        date_row = row['Data']
-        S3_PATH = f"s3://{bucket_name}/raw/{commodity_name}/" + f"year={date_row.year}/month={date_row.month}/day={date_row.day}/data.parquet"
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        results = list(executor.map(lambda row: upload_single_row(commodity_name, row), rows_to_process))
 
-        out_buffer = BytesIO()
-        single_data.to_parquet(out_buffer, index=False, engine='fastparquet')
-
-        s3.put_object(Bucket=bucket_name, Key=S3_PATH, Body=out_buffer.getvalue())
-    '''raw_commodity_data.to_parquet(
-        S3_PATH,
-        partition_cols=['year', 'month', 'day'],  # <--- THIS DOES THE WORK
-        compression='snappy'
-    )'''
+    print(f"Finished. Processed {len(results)} items.")
     # Save raw data to S3
     '''try:
         s3 = boto3.client('s3')
