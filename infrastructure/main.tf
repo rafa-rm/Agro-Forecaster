@@ -90,8 +90,8 @@ resource "aws_lambda_function" "agro_scraper" {
   role          = aws_iam_role.lambda_exec_role.arn
   handler       = "get_commodity_data.lambda_handler" 
   runtime       = "python3.14"
-  timeout       = 300 
-  memory_size   = 512 
+  timeout       = 600 
+  memory_size   = 1024 
 
   s3_bucket = aws_s3_bucket.lambda_code_bucket.id
   s3_key    = aws_s3_object.code_get_commodity_data_zip.key
