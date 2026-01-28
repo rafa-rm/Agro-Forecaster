@@ -35,7 +35,7 @@ def get_cepea_historical_table_url(commodity_name: str, commodity_id: str) -> st
         raise ValueError(f"Historical data table URL not found for {commodity_name}.")
 
 
-def process_commodity_data(commodity_name: str, commodity_id: str) -> bool:
+def process_historical_commodity_data(commodity_name: str, commodity_id: str) -> bool:
     """
     Fetches CEPEA commodity data based on the provided commodity name and ID
     and processes it.
@@ -71,18 +71,33 @@ def process_commodity_data(commodity_name: str, commodity_id: str) -> bool:
             data.append(sheet.row_values(row_idx))
         
         raw_commodity_data = pd.DataFrame(data)
+        raw_commodity_data['Data'] = pd.to_datetime(raw_commodity_data['Data'], format='%d/%m/%Y', errors='coerce')
+        raw_commodity_data['year'] = raw_commodity_data['Data'].dt.year
+        raw_commodity_data['month'] = raw_commodity_data['Data'].dt.month
+        raw_commodity_data['day'] = raw_commodity_data['Data'].dt.day
+
+
+        
     except Exception as e:
         print(f"Error processing data for {commodity_name}: {e}")
         return False
 
-    today_date = datetime.now().strftime('%Y-%m-%d')
+    #today_date = datetime.now().strftime('%Y-%m-%d')
 
-    raw_s3_key = f"commodity={commodity_name}/{today_date}_raw.csv"
+    #raw_s3_key = f"commodity={commodity_name}/{today_date}_raw.csv"
     
+    bucket_name = os.environ['S3_BUCKET_NAME']
+    S3_PATH = f"s3://{bucket_name}/raw/{commodity_name}"
+
+    raw_commodity_data.to_parquet(
+        S3_PATH,
+        partition_cols=['year', 'month', 'day'],  # <--- THIS DOES THE WORK
+        compression='snappy'
+    )
     # Save raw data to S3
-    try:
+    '''try:
         s3 = boto3.client('s3')
-        bucket_name = os.environ['S3_BUCKET_NAME']
+        
         csv_buffer = BytesIO()
         raw_commodity_data.to_csv(csv_buffer, index=False)
         s3.put_object(Bucket=bucket_name, Key=raw_s3_key, Body=csv_buffer.getvalue())
@@ -91,17 +106,19 @@ def process_commodity_data(commodity_name: str, commodity_id: str) -> bool:
     except Exception as e:
         print(f"Error saving {commodity_name} to S3: {e}")
         return False
-
+    '''
 def lambda_handler(event, context):
     commodities = [
         {"name": "soja", "id": "12"},
+        {"name": "trigo", "id": "178"},
     ]
 
     results = {}
     
-    for commodity in commodities:
-        success = process_commodity_data(commodity["name"], commodity["id"])
-        results[commodity["name"]] = "Success" if success else "Failed"
+    if event.get('mode') == 'historical':
+        for commodity in commodities:
+            success = process_historical_commodity_data(commodity["name"], commodity["id"])
+            results[commodity["name"]] = "Success" if success else "Failed"
 
     return {
         'statusCode': 200,
