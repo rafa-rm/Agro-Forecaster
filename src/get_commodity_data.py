@@ -13,6 +13,8 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 }
 MAX_WORKERS = 50  
+s3 = boto3.client('s3')
+bucket_name = os.environ['S3_BUCKET_NAME']
 
 
 def get_cepea_historical_table_url(commodity_name: str, commodity_id: str) -> str:
@@ -37,17 +39,13 @@ def get_cepea_historical_table_url(commodity_name: str, commodity_id: str) -> st
         raise ValueError(f"Historical data table URL not found for {commodity_name}.")
 
 def upload_single_row(commodity_name: str, row):
-    bucket_name = os.environ['S3_BUCKET_NAME']
-    s3 = boto3.client('s3')
     
     single_data = pd.DataFrame([row])
     date_row = row['Data']
-    S3_PATH = f"{bucket_name}/raw/{commodity_name}/" + f"year={date_row.year}/month={date_row.month}/day={date_row.day}/data.parquet"
+    S3_PATH = f"raw/{commodity_name}/" + f"year={date_row.year}/month={date_row.month}/day={date_row.day}/data.parquet"
 
     out_buffer = BytesIO()
     single_data.to_parquet(out_buffer, index=False, engine='fastparquet', compression='snappy')
-
-    s3.put_object(Bucket=bucket_name, Key=S3_PATH, Body=out_buffer.getvalue())
 
     try:
         s3.put_object(Bucket=bucket_name, Key=S3_PATH, Body=out_buffer.getvalue())
@@ -90,12 +88,13 @@ def process_historical_commodity_data(commodity_name: str, commodity_id: str) ->
         for row_idx in range(3, sheet.nrows):
             data.append(sheet.row_values(row_idx))
         
+        print(data)
         headers = data[0]
         data = data[1:]  
 
         raw_commodity_data = pd.DataFrame(data, columns=headers)
         raw_commodity_data['Data'] = pd.to_datetime(raw_commodity_data['Data'], format='%d/%m/%Y', errors='coerce')
-
+        print(raw_commodity_data)
         
     except Exception as e:
         print(f"Error processing data for {commodity_name}: {e}")
