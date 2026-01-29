@@ -4,7 +4,7 @@ import boto3
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
-from io import BytesIO
+from io import BytesIO, StringIO
 from datetime import datetime
 import xlrd
 from concurrent.futures import ThreadPoolExecutor
@@ -104,31 +104,58 @@ def process_historical_commodity_data(commodity_name: str, commodity_id: str) ->
         print(f"Error processing data for {commodity_name}: {e}")
         return False
 
-    #today_date = datetime.now().strftime('%Y-%m-%d')
-
-    #raw_s3_key = f"commodity={commodity_name}/{today_date}_raw.csv"
     
     rows_to_process = [row for _, row in raw_commodity_data.iterrows()]
     
     print(f"Starting parallel upload of {len(rows_to_process)} records for {commodity_name}...")
+    try:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            results = list(executor.map(lambda row: upload_single_row(commodity_name, row), rows_to_process))
 
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        results = list(executor.map(lambda row: upload_single_row(commodity_name, row), rows_to_process))
-
-    print(f"Finished. Processed {len(results)} items.")
-    # Save raw data to S3
-    '''try:
-        s3 = boto3.client('s3')
-        
-        csv_buffer = BytesIO()
-        raw_commodity_data.to_csv(csv_buffer, index=False)
-        s3.put_object(Bucket=bucket_name, Key=raw_s3_key, Body=csv_buffer.getvalue())
-        print(f"Raw data for {commodity_name} saved to s3://{bucket_name}/{raw_s3_key}")
+        print(f"Finished. Processed {len(results)} items.")
         return True
     except Exception as e:
-        print(f"Error saving {commodity_name} to S3: {e}")
+        print(f"Error during parallel upload for {commodity_name}: {e}")
         return False
-    '''
+    
+def get_cepea_weekly_table(commodity_name: str):
+    """
+    Fetches the URL of the weekly data table for a given CEPEA commodity.
+    Args:
+        commodity_name (str): The name of the commodity.
+    """
+    base_url = f"https://www.cepea.org.br/br/indicador/{commodity_name.lower()}.aspx"
+
+    try:
+        response = requests.get(base_url, headers=HEADERS)
+        return response.text
+    except Exception as e:
+        print(f"Error fetching weekly table for {commodity_name}: {e}")
+        return None
+
+
+def process_weekly_commodity_data(commodity_name: str) -> bool:
+    """
+    Fetches CEPEA weekly commodity data based on the provided commodity name.
+
+    Args:
+        commodity_name (str): The name of the commodity.
+    
+    Returns:
+        bool: True if successful, False otherwise.
+    """
+    try:
+        table_html = get_cepea_weekly_table(commodity_name)
+        if table_html:
+            tables = pd.read_html(StringIO(table_html))
+            print(tables)
+            return True
+        else:
+            return False
+    except Exception as e:
+        print(f"Error processing weekly data for {commodity_name}: {e}")
+        return False
+
 def lambda_handler(event, context):
     commodities = [
         {"name": "soja", "id": "12"},
@@ -140,6 +167,10 @@ def lambda_handler(event, context):
     if event.get('mode') == 'historical':
         for commodity in commodities:
             success = process_historical_commodity_data(commodity["name"], commodity["id"])
+            results[commodity["name"]] = "Success" if success else "Failed"
+    else:
+        for commodity in commodities:
+            success = process_weekly_commodity_data(commodity["name"])
             results[commodity["name"]] = "Success" if success else "Failed"
 
     return {
