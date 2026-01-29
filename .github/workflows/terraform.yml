@@ -70,3 +70,13 @@ jobs:
           TF_VAR_environment: ${{ secrets.TF_VAR_environment }}
           TF_VAR_agro_bucket_name: ${{ secrets.TF_VAR_agro_bucket_name }}
           TF_VAR_aws_region: ${{ secrets.TF_VAR_aws_region }}
+
+      - name: "Terraform Destroy"
+        if: true  # Change to true to enable destroy (use with caution!)
+        run: terraform destroy -auto-approve -input=false
+        env:
+          TF_VAR_github_name: ${{ secrets.TF_VAR_github_name }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_environment: ${{ secrets.TF_VAR_environment }}
+          TF_VAR_agro_bucket_name: ${{ secrets.TF_VAR_agro_bucket_name }}
+          TF_VAR_aws_region: ${{ secrets.TF_VAR_aws_region }}
