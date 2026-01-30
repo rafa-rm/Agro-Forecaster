@@ -54,9 +54,8 @@ def process_historical_yahoo_data(name: str, symbol: str) -> bool:
             print(f"⚠️ No data for {name}")
             return False
         
+        df.reset_index(inplace=True)
         raw_data = df.copy()[['Date', 'Open', 'High', 'Low', 'Close']]
-        raw_data.reset_index(inplace=True)
-        raw_data['Date'] = raw_data['Date'].dt.strftime('%Y-%m-%d')
         
     except Exception as e:
         print(f"Error processing data for {name}: {e}")
@@ -75,8 +74,6 @@ def process_historical_yahoo_data(name: str, symbol: str) -> bool:
         print(f"Error during parallel upload for {name}: {e}")
         return False
     
-
-
 def lambda_handler(event, context):
 
     tickers = [
