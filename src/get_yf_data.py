@@ -87,6 +87,9 @@ def lambda_handler(event, context):
         for ticker in tickers:
             success = process_historical_yahoo_data(ticker["name"], ticker["symbol"])
             results[ticker["name"]] = "Success" if success else "Failed"
+    
+    else:
+        results['message'] = "No valid mode provided. Use 'historical'."
 
     return {
         'statusCode': 200,
