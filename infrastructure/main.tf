@@ -39,8 +39,8 @@ resource "aws_s3_bucket" "lambda_code_bucket" {
 
 data "archive_file" "lambda_code" {
   type        = "zip"
-  source_file = "../src/get_commodity_data.py"  
-  output_path = "${path.module}/get_commodity_data.zip"
+  source_file = "../src/get_yf_data.py"  
+  output_path = "${path.module}/get_yf_data.zip"
 }
 
 resource "aws_s3_object" "layer_zip" {
@@ -50,9 +50,9 @@ resource "aws_s3_object" "layer_zip" {
   etag   = filemd5("../src/agro_forecaster_layer.zip")
 }
 
-resource "aws_s3_object" "code_get_commodity_data_zip" {
+resource "aws_s3_object" "code_get_yf_data_zip" {
   bucket = aws_s3_bucket.lambda_code_bucket.id
-  key    = "code/get_commodity_data.zip"
+  key    = "code/get_yf_data.zip"
   source = data.archive_file.lambda_code.output_path
   etag   = data.archive_file.lambda_code.output_base64sha256
 }
@@ -88,13 +88,13 @@ resource "aws_lambda_function" "agro_scraper" {
   function_name = "agro-data-ingestion"
   description   = "Daily ingestion of CEPEA Soy/Corn prices"
   role          = aws_iam_role.lambda_exec_role.arn
-  handler       = "get_commodity_data.lambda_handler" 
+  handler       = "get_yf_data.lambda_handler" 
   runtime       = "python3.14"
   timeout       = 600 
   memory_size   = 1024 
 
   s3_bucket = aws_s3_bucket.lambda_code_bucket.id
-  s3_key    = aws_s3_object.code_get_commodity_data_zip.key
+  s3_key    = aws_s3_object.code_get_yf_data_zip.key
   source_code_hash = data.archive_file.lambda_code.output_base64sha256
 
   # Attach the Layer

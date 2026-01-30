@@ -72,7 +72,7 @@ jobs:
           TF_VAR_aws_region: ${{ secrets.TF_VAR_aws_region }}
 
       - name: "Terraform Destroy"
-        if: true  # Change to true to enable destroy (use with caution!)
+        if: true  # Change to true to enable destroy
         run: terraform destroy -auto-approve -input=false
         env:
           TF_VAR_github_name: ${{ secrets.TF_VAR_github_name }}

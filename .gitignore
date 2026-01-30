@@ -26,5 +26,3 @@ infrastructure/*.zip
 
 # Python Layer
 src/python/*
-
-src/ingestion_cepea/*
