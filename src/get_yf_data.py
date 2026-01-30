@@ -73,6 +73,46 @@ def process_historical_yahoo_data(name: str, symbol: str) -> bool:
     except Exception as e:
         print(f"Error during parallel upload for {name}: {e}")
         return False
+
+def process_daily_yahoo_data(name: str, symbol: str) -> bool:
+    """
+    Fetches daily data from Yahoo Finance based on the provided name and ID.
+    Args:
+        name (str): The name.
+        symbol (str): The Yahoo Finance symbol.
+    Returns:
+        bool: True if successful, False otherwise.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        # Get data for the last 5 days to ensure we have recent data
+        # and to be fault-tolerant in case of weekends/holidays or
+        # errors in data fetching on previous days.
+        df = ticker.history(period="5d", interval="1d")
+
+        if df.empty:
+            print(f"⚠️ No data for {name}")
+            return False
+        
+        df.reset_index(inplace=True)
+        raw_data = df.copy()[['Date', 'Open', 'High', 'Low', 'Close']]
+        
+    except Exception as e:
+        print(f"Error processing data for {name}: {e}")
+        return False
+
+    rows_to_process = [row for _, row in raw_data.iterrows()]
+    
+    print(f"Starting parallel upload of {len(rows_to_process)} records for {name}...")
+    try:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            results = list(executor.map(lambda row: upload_single_row(name, row), rows_to_process))
+
+        print(f"Finished. Processed {len(results)} items.")
+        return True
+    except Exception as e:
+        print(f"Error during parallel upload for {name}: {e}")
+        return False
     
 def lambda_handler(event, context):
 
@@ -89,7 +129,9 @@ def lambda_handler(event, context):
             results[ticker["name"]] = "Success" if success else "Failed"
     
     else:
-        results['message'] = "No valid mode provided. Use 'historical'."
+        for ticker in tickers:
+            success = process_daily_yahoo_data(ticker["name"], ticker["symbol"])
+            results[ticker["name"]] = "Success" if success else "Failed"
 
     return {
         'statusCode': 200,
