@@ -118,7 +118,15 @@ resource "aws_glue_crawler" "agro_data_crawler" {
   role         = aws_iam_role.glue_service_role.arn
 
   s3_target {
-    path = "s3://${aws_s3_bucket.agro_data_lake.id}/raw/"
+    path = "s3://${aws_s3_bucket.agro_data_lake.id}/raw/soybean/"
+  }
+
+  s3_target {
+    path = "s3://${aws_s3_bucket.agro_data_lake.id}/raw/corn/"
+  }
+
+  s3_target {
+    path = "s3://${aws_s3_bucket.agro_data_lake.id}/raw/usd_brl/"
   }
 
   recrawl_policy {
