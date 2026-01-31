@@ -107,3 +107,18 @@ resource "aws_lambda_function" "agro_scraper" {
     }
   }
 }
+
+resource "aws_glue_catalog_database" "agro_data_db" {
+  name = "agro_data_db"
+}
+
+resource "aws_glue_crawler" "agro_data_crawler" {
+  name         = "agro-data-crawler"
+  database_name = aws_glue_catalog_database.agro_data_db.name
+  role         = aws_iam_role.glue_service_role.arn
+
+  s3_target {
+    path = "s3://${aws_s3_bucket.agro_data_lake.id}/"
+  }
+
+}
