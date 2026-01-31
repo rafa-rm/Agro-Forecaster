@@ -101,3 +101,32 @@ resource "aws_iam_role_policy_attachment" "glue_service_role_policy_attachment" 
   role       = aws_iam_role.glue_service_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
 }
+
+resource "aws_iam_policy" "glue_s3_access" {
+  name        = "agro-glue-s3-access"
+  description = "Allow Glue to read/write to the Data Lake bucket"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowS3ListAndRead"
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+          "s3:GetObject",
+          "s3:PutObject"
+        ]
+        Resource = [
+          aws_s3_bucket.agro_data_lake.arn,       
+          "${aws_s3_bucket.agro_data_lake.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "glue_s3_attach" {
+  role       = aws_iam_role.glue_service_role.name
+  policy_arn = aws_iam_policy.glue_s3_access.arn
+}
