@@ -125,6 +125,11 @@ resource "aws_glue_crawler" "agro_data_crawler" {
     recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"
   }
 
+  schema_change_policy {
+    delete_behavior = "LOG"
+    update_behavior = "LOG" 
+  }
+
 }
 
 resource "aws_glue_trigger" "daily_crawl" {
