@@ -121,4 +121,38 @@ resource "aws_glue_crawler" "agro_data_crawler" {
     path = "s3://${aws_s3_bucket.agro_data_lake.id}/raw/"
   }
 
+  recrawl_policy {
+    recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"
+  }
+
+}
+
+resource "aws_glue_trigger" "daily_crawl" {
+  name     = "daily-agro-crawl"
+  schedule = "cron(0 9 * * ? *)" 
+  type     = "SCHEDULED"
+
+  actions {
+    job_name = aws_glue_crawler.agro_data_crawler.name
+  }
+}
+
+resource "aws_s3_bucket" "athena_results" {
+  bucket = "${var.agro_bucket_name}-athena-results"
+
+  tags = {
+    Environment = var.environment
+  }
+}
+
+resource "aws_athena_workgroup" "agro_workgroup" {
+  name = "agro-analytics"
+
+  configuration {
+    result_configuration {
+      output_location = "s3://${aws_s3_bucket.athena_results.bucket}/output/"
+    }
+
+    enforce_workgroup_configuration = true
+  }
 }
