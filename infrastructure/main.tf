@@ -129,9 +129,17 @@ resource "aws_glue_crawler" "agro_data_crawler" {
     path = "s3://${aws_s3_bucket.agro_data_lake.id}/raw/usd_brl/"
   }
 
-  #recrawl_policy {
-  #  recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"
-  #}
+  s3_target {
+    path = "s3://${aws_s3_bucket.agro_data_lake.id}/raw/wheat/"
+  }
+
+  s3_target {
+    path = "s3://${aws_s3_bucket.agro_data_lake.id}/raw/oil/"
+  }
+
+  recrawl_policy {
+    recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"
+  }
 
   schema_change_policy {
     delete_behavior = "LOG"

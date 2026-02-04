@@ -26,6 +26,7 @@ def upload_single_row(name: str, row):
     
     single_data = pd.DataFrame([row])
     date_row = row['Date']
+    single_data['Date'] = date_row.strftime('%Y-%m-%d')
     S3_PATH = f"raw/{name}/" + f"year={date_row.year}/month={date_row.month}/day={date_row.day}/data.parquet"
     out_buffer = BytesIO()
     single_data.to_parquet(out_buffer, index=False, engine='fastparquet', compression='snappy')
@@ -119,7 +120,9 @@ def lambda_handler(event, context):
     tickers = [
         {"name": "soybean", "symbol": "ZS=F"},  # Soy Futures
         {"name": "corn", "symbol": "ZC=F"},     # Corn Futures
-        {"name": "usd_brl", "symbol": "BRL=X"}  # Dollar to Real Exchange Rate
+        {"name": "wheat", "symbol": "ZW=F"},      # Wheat Futures
+        {"name": "usd_brl", "symbol": "BRL=X"},  # Dollar to Real Exchange Rate
+        {"name": "oil", "symbol": "BZ=F"}        # Oil Futures (Macro/Energy)
     ]
     results = {}
     
