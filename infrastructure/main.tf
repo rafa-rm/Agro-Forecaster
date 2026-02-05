@@ -150,7 +150,7 @@ resource "aws_glue_crawler" "agro_data_crawler" {
 
 resource "aws_glue_trigger" "daily_crawl" {
   name     = "daily-agro-crawl"
-  schedule = "cron(0 9 * * ? *)" 
+  schedule = "cron(0 8 * * ? *)" 
   type     = "SCHEDULED"
 
   actions {
