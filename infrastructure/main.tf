@@ -148,16 +148,6 @@ resource "aws_glue_crawler" "agro_data_crawler" {
 
 }
 
-resource "aws_glue_trigger" "daily_crawl" {
-  name     = "daily-agro-crawl"
-  schedule = "cron(0 8 * * ? *)" 
-  type     = "SCHEDULED"
-
-  actions {
-    job_name = aws_glue_crawler.agro_data_crawler.name
-  }
-}
-
 resource "aws_s3_bucket" "athena_results" {
   bucket = "${var.agro_bucket_name}-athena-results"
 
