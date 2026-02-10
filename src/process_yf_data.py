@@ -40,27 +40,27 @@ def get_and_process_data(commodity_name: str, prefix_name: str) -> pd.DataFrame:
                 print(f"⚠️ Skipping non-parquet file: {key}")
                 continue
 
-        local_path = f"/tmp/{key.replace('/', '_')}"
-        s3.download_file(BUCKET_NAME, key, local_path)
-        try:
-            df = pd.read_parquet(local_path)
-            if 'Date' not in df.columns:
-                print(f"⚠️ 'Date' column missing in {key}. Skipping file.")
-                continue
-            if 'Open' in df.columns and 'High' in df.columns and 'Low' in df.columns:
-                df['Open'] = df['Open'].replace(0, pd.NA) 
-                df['Volatility'] = (df['High'] - df['Low']) / df['Open']
-            else:
-                df['Volatility'] = 0.0
-            
-            df = df[['Date', 'Close', 'Volatility']]
-            df.columns = ['Date', f'{prefix_name}_Close', f'{prefix_name}_Volatility']
-            all_dfs.append(df)
-        except Exception as e:
-            print(f"Error processing file {key}: {e}")
-        finally:
-            if os.path.exists(local_path):
-                os.remove(local_path)
+            local_path = f"/tmp/{key.replace('/', '_')}"
+            s3.download_file(BUCKET_NAME, key, local_path)
+            try:
+                df = pd.read_parquet(local_path)
+                if 'Date' not in df.columns:
+                    print(f"⚠️ 'Date' column missing in {key}. Skipping file.")
+                    continue
+                if 'Open' in df.columns and 'High' in df.columns and 'Low' in df.columns:
+                    df['Open'] = df['Open'].replace(0, pd.NA) 
+                    df['Volatility'] = (df['High'] - df['Low']) / df['Open']
+                else:
+                    df['Volatility'] = 0.0
+                
+                df = df[['Date', 'Close', 'Volatility']]
+                df.columns = ['Date', f'{prefix_name}_Close', f'{prefix_name}_Volatility']
+                all_dfs.append(df)
+            except Exception as e:
+                print(f"Error processing file {key}: {e}")
+            finally:
+                if os.path.exists(local_path):
+                    os.remove(local_path)
     
     if not all_dfs:
         print(f"❌ No data found for {commodity_name}")
