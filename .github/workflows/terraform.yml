@@ -9,7 +9,7 @@ on:
       - 'src/**'            # Or when lambda code changes
 
 permissions:
-  id-token: write # Required for OIDC (AWS Authentication)
+  id-token: write # Required for OIDC 
   contents: read  # Required to checkout code
 
 jobs:
@@ -19,14 +19,14 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./infrastructure # IMPORTANT: Points to your .tf files
+        working-directory: ./infrastructure # Pointing to .tf files
 
     steps:
       # 1. Get the code
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 2. Login to AWS using OIDC (No keys!)
+      # 2. Login to AWS using OIDC
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -48,7 +48,7 @@ jobs:
             -backend-config="region=${{ secrets.TF_VAR_aws_region }}" \
             -backend-config="encrypt=true"
 
-      # 5. Plan (Check what will happen)
+      # 5. Plan
       - name: Terraform Plan
         run: terraform plan -input=false
         env:
