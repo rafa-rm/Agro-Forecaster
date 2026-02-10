@@ -23,7 +23,7 @@ resource "aws_glue_catalog_table" "raw_tables" {
         "projection.day.type" = "integer"
         "projection.day.range" = "1,31"
 
-        "storage.location.template" = "s3://${aws_s3_bucket.agro_data_lake.id}/raw/${each.key}/year=$${year}}/month=$${month}}/day=$${day}}/"
+        "storage.location.template" = "s3://${aws_s3_bucket.agro_data_lake.id}/raw/${each.key}/year=$${year}/month=$${month}/day=$${day}/"
     }
 
     storage_descriptor {
