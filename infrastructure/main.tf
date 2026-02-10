@@ -37,6 +37,12 @@ resource "aws_s3_object" "code_get_yf_data_zip" {
   etag   = data.archive_file.lambda_code.output_base64sha256
 }
 
+resource "aws_s3_object" "code_process_yf_data_zip" {
+  bucket = aws_s3_bucket.lambda_code_bucket.id
+  key    = "code/process_yf_data.zip"
+  source = data.archive_file.lambda_code_process_yf_data.output_path
+  etag   = data.archive_file.lambda_code_process_yf_data.output_base64sha256
+}
 
 resource "aws_scheduler_schedule" "agro_scraper_schedule" {
   name        = "agro-scraper-schedule"
