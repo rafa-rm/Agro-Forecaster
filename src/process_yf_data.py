@@ -32,7 +32,7 @@ def get_and_process_data(commodity_name: str, prefix_name: str) -> pd.DataFrame:
     for page in pages:
         if 'Contents' not in page:
             print(f"⚠️ No files found for {commodity_name}")
-            continue# Return empty DataFrame if no files found
+            continue
 
         for obj in page['Contents']:
             key = obj['Key']
@@ -44,19 +44,17 @@ def get_and_process_data(commodity_name: str, prefix_name: str) -> pd.DataFrame:
         s3.download_file(BUCKET_NAME, key, local_path)
         try:
             df = pd.read_parquet(local_path)
-            df.columns = [c.lower() for c in df.columns]
-            
-            if 'date' not in df.columns:
-                print(f"⚠️ Warning: 'date' column missing in {key}. Columns found: {df.columns}")
+            if 'Date' not in df.columns:
+                print(f"⚠️ 'Date' column missing in {key}. Skipping file.")
                 continue
             if 'Open' in df.columns and 'High' in df.columns and 'Low' in df.columns:
                 df['Open'] = df['Open'].replace(0, pd.NA) 
-                df['volatility'] = (df['High'] - df['Low']) / df['Open']
+                df['Volatility'] = (df['High'] - df['Low']) / df['Open']
             else:
-                df['volatility'] = 0.0
+                df['Volatility'] = 0.0
             
-            df = df[['date', 'Close', 'volatility']]
-            df.columns = ['date', f'{prefix_name}_Close', f'{prefix_name}_Volatility']
+            df = df[['Date', 'Close', 'Volatility']]
+            df.columns = ['Date', f'{prefix_name}_Close', f'{prefix_name}_Volatility']
             all_dfs.append(df)
         except Exception as e:
             print(f"Error processing file {key}: {e}")
