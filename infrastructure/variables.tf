@@ -25,3 +25,9 @@ variable "github_repo" {
   description = "The name of the repository"
   type        = string
 }
+
+variable "commodities" {
+  description = "List of raw commodities to create tables for"
+  type        = set(string)
+  default     = ["soybean", "corn", "wheat", "oil", "usd_brl"]
+}
