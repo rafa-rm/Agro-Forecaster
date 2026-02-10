@@ -44,14 +44,19 @@ def get_and_process_data(commodity_name: str, prefix_name: str) -> pd.DataFrame:
         s3.download_file(BUCKET_NAME, key, local_path)
         try:
             df = pd.read_parquet(local_path)
+            df.columns = [c.lower() for c in df.columns]
+            
+            if 'date' not in df.columns:
+                print(f"⚠️ Warning: 'date' column missing in {key}. Columns found: {df.columns}")
+                continue
             if 'Open' in df.columns and 'High' in df.columns and 'Low' in df.columns:
                 df['Open'] = df['Open'].replace(0, pd.NA) 
                 df['volatility'] = (df['High'] - df['Low']) / df['Open']
             else:
                 df['volatility'] = 0.0
             
-            df = df[['Date', 'Close', 'volatility']]
-            df.columns = ['Date', f'{prefix_name}_Close', f'{prefix_name}_Volatility']
+            df = df[['date', 'Close', 'volatility']]
+            df.columns = ['date', f'{prefix_name}_Close', f'{prefix_name}_Volatility']
             all_dfs.append(df)
         except Exception as e:
             print(f"Error processing file {key}: {e}")
