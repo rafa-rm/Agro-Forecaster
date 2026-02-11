@@ -64,3 +64,32 @@ resource "aws_lambda_function" "agro_processor" {
   }
 }
 
+data "archive_file" "gold_layer" {
+  type        = "zip"
+  source_dir = "../src/gold_layer"  
+  output_path = "${path.module}/gold_layer.zip"
+}
+
+resource "aws_lambda_function" "agro_enricher" {
+  function_name = "agro-data-enricher"
+  description   = "Daily enrichment of Yahoo finance data"
+  role          = aws_iam_role.lambda_exec_role.arn
+  handler       = "enrich_yf_data.lambda_handler" 
+  runtime       = "python3.14"
+  timeout       = 300 
+  memory_size   = 512 
+
+  s3_bucket = aws_s3_bucket.lambda_code_bucket.id
+  s3_key    = aws_s3_object.code_gold_layer_zip.key
+  source_code_hash = data.archive_file.gold_layer.output_base64sha256
+
+  layers = [aws_lambda_layer_version.agro_layer.arn]
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME = aws_s3_bucket.agro_data_lake.id
+    }
+  }
+}
+
+
