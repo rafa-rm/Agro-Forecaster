@@ -48,8 +48,13 @@ def clean_nans(df):
 def lambda_handler(event, context):
     print("🚀 Starting Feature Engineering...")
     
+    local_path = "/tmp/agro_master_table.parquet"
+    s3_key = "trusted/agro_master_table.parquet"
     # 1. Load Trusted Data 
-    df = pd.read_parquet(f's3://{BUCKET_NAME}/trusted/agro_master_table.parquet')
+    print(f"⬇️ Downloading {s3_key} to {local_path}...")
+    s3.download_file(BUCKET_NAME, s3_key, local_path)
+    df = pd.read_parquet(local_path)
+
     if 'Date' in df.columns:
         df = df.sort_values('Date')
     
