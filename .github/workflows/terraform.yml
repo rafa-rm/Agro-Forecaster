@@ -7,6 +7,12 @@ on:
     paths:
       - 'infrastructure/**' # Only run when infra code changes
       - 'src/**'            # Or when lambda code changes
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+      - 'src/**'
 
 permissions:
   id-token: write # Required for OIDC 
