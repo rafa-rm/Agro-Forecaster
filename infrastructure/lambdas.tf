@@ -21,7 +21,7 @@ resource "aws_lambda_function" "agro_scraper" {
   handler       = "get_yf_data.lambda_handler" 
   runtime       = "python3.14"
   timeout       = 600 
-  memory_size   = 1769 
+  memory_size   = 1024 
 
   s3_bucket = aws_s3_bucket.lambda_code_bucket.id
   s3_key    = aws_s3_object.code_get_yf_data_zip.key
@@ -49,7 +49,7 @@ resource "aws_lambda_function" "agro_processor" {
   handler       = "process_yf_data.lambda_handler" 
   runtime       = "python3.14"
   timeout       = 600 
-  memory_size   = 1024 
+  memory_size   = 1769 
 
   s3_bucket = aws_s3_bucket.lambda_code_bucket.id
   s3_key    = aws_s3_object.code_process_yf_data_zip.key
