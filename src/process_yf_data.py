@@ -2,9 +2,13 @@ import boto3
 import pandas as pd
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor
+
+
 
 s3 = boto3.client('s3')
 BUCKET_NAME = os.environ['S3_BUCKET_NAME']
+MAX_WORKERS = 50
 
 def cleanup_tmp():
     """Safely removes all files from /tmp without deleting the folder itself."""
@@ -19,6 +23,32 @@ def cleanup_tmp():
         except Exception as e:
             print(f"⚠️ Failed to delete {file_path}. Reason: {e}")
 
+def process_single_obj(obj, prefix_name: str) -> pd.DataFrame:
+    key = obj['Key']
+    if not key.endswith('.parquet'):
+        print(f"⚠️ Skipping non-parquet file: {key}")
+
+    local_path = f"/tmp/{key.replace('/', '_')}"
+    s3.download_file(BUCKET_NAME, key, local_path)
+    try:
+        df = pd.read_parquet(local_path)
+        if 'Date' not in df.columns:
+            print(f"⚠️ 'Date' column missing in {key}. Skipping file.")
+        if 'Open' in df.columns and 'High' in df.columns and 'Low' in df.columns:
+            df['Open'] = df['Open'].replace(0, pd.NA) 
+            df['Volatility'] = (df['High'] - df['Low']) / df['Open']
+        else:
+            df['Volatility'] = 0.0
+        
+        df = df[['Date', 'Close', 'Volatility']]
+        df.columns = ['Date', f'{prefix_name}_Close', f'{prefix_name}_Volatility']
+        return df
+    except Exception as e:
+        print(f"Error processing file {key}: {e}")
+    finally:
+        if os.path.exists(local_path):
+            os.remove(local_path)
+
 def get_and_process_data(commodity_name: str, prefix_name: str) -> pd.DataFrame:
     """
     1. Lists all parquet files for a commodity (e.g., 'soybean').
@@ -29,39 +59,24 @@ def get_and_process_data(commodity_name: str, prefix_name: str) -> pd.DataFrame:
     pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix=f"raw/{commodity_name}/")
     
     all_dfs = []
+    objects_to_process = []
     for page in pages:
-        if 'Contents' not in page:
-            print(f"⚠️ No files found for {commodity_name}")
-            continue
-
-        for obj in page['Contents']:
-            key = obj['Key']
-            if not key.endswith('.parquet'):
-                print(f"⚠️ Skipping non-parquet file: {key}")
-                continue
-
-            local_path = f"/tmp/{key.replace('/', '_')}"
-            s3.download_file(BUCKET_NAME, key, local_path)
-            try:
-                df = pd.read_parquet(local_path)
-                if 'Date' not in df.columns:
-                    print(f"⚠️ 'Date' column missing in {key}. Skipping file.")
-                    continue
-                if 'Open' in df.columns and 'High' in df.columns and 'Low' in df.columns:
-                    df['Open'] = df['Open'].replace(0, pd.NA) 
-                    df['Volatility'] = (df['High'] - df['Low']) / df['Open']
-                else:
-                    df['Volatility'] = 0.0
-                
-                df = df[['Date', 'Close', 'Volatility']]
-                df.columns = ['Date', f'{prefix_name}_Close', f'{prefix_name}_Volatility']
-                all_dfs.append(df)
-            except Exception as e:
-                print(f"Error processing file {key}: {e}")
-            finally:
-                if os.path.exists(local_path):
-                    os.remove(local_path)
+        if 'Contents' in page:
+            objects_to_process.extend(page['Contents'])
+            
+    if not objects_to_process:
+        print(f"⚠️ No files found for {commodity_name}")
+        return pd.DataFrame()
     
+    try:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            results_iterator = executor.map(lambda obj: process_single_obj(obj, prefix_name), objects_to_process)
+            clean_results = [res for res in results_iterator if res is not None and not res.empty]
+            all_dfs.extend(clean_results)
+
+            print(f"Finished. Processed {len(objects_to_process)} items.")
+    except Exception as e:
+        print(f"Error during parallel upload for {prefix_name}: {e}")
     if not all_dfs:
         print(f"❌ No data found for {commodity_name}")
         return pd.DataFrame() 
