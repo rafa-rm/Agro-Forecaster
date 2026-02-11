@@ -33,6 +33,7 @@ def process_single_obj(obj, prefix_name: str) -> pd.DataFrame:
     key = obj['Key']
     if not key.endswith('.parquet'):
         print(f"⚠️ Skipping non-parquet file: {key}")
+        return None
 
     local_path = f"/tmp/{key.replace('/', '_')}"
     s3.download_file(BUCKET_NAME, key, local_path)
@@ -40,6 +41,7 @@ def process_single_obj(obj, prefix_name: str) -> pd.DataFrame:
         df = pd.read_parquet(local_path)
         if 'Date' not in df.columns:
             print(f"⚠️ 'Date' column missing in {key}. Skipping file.")
+            return None
         if 'Open' in df.columns and 'High' in df.columns and 'Low' in df.columns:
             df['Open'] = df['Open'].replace(0, pd.NA) 
             df['Volatility'] = (df['High'] - df['Low']) / df['Open']
