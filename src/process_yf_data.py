@@ -3,12 +3,18 @@ import pandas as pd
 import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
+from botocore.config import Config
 
 
-
-s3 = boto3.client('s3')
-BUCKET_NAME = os.environ['S3_BUCKET_NAME']
 MAX_WORKERS = 50
+
+my_config = Config(
+    max_pool_connections=MAX_WORKERS + 5,  
+    retries={'max_attempts': 3}            
+)
+
+s3 = boto3.client('s3', config=my_config)
+BUCKET_NAME = os.environ['S3_BUCKET_NAME']
 
 def cleanup_tmp():
     """Safely removes all files from /tmp without deleting the folder itself."""
