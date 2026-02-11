@@ -4,6 +4,7 @@ import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 from botocore.config import Config
+import json
 
 
 MAX_WORKERS = 50
