@@ -26,3 +26,6 @@ infrastructure/*.zip
 
 # Python Layer
 src/python/*
+
+# Parque File
+*.parquet
