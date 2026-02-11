@@ -16,6 +16,8 @@ my_config = Config(
 s3 = boto3.client('s3', config=my_config)
 BUCKET_NAME = os.environ['S3_BUCKET_NAME']
 
+lambda_client = boto3.client('lambda')
+
 def cleanup_tmp():
     """Safely removes all files from /tmp without deleting the folder itself."""
     folder = '/tmp'
@@ -159,9 +161,23 @@ def lambda_handler(event, context):
         s3.upload_file(output_path, BUCKET_NAME, s3_key)
         print(f"✅ Uploaded cleaned data to s3://{BUCKET_NAME}/{s3_key}")
 
+
+        next_lambda_name = 'agro-data-enricher' 
+    
+        print(f"Triggering {next_lambda_name}...")
+        try:
+            lambda_client.invoke(
+                FunctionName=next_lambda_name,
+                InvocationType='Event', 
+                Payload=json.dumps({})
+            )
+        except Exception as e:
+            print(f"❌ Failed to trigger {next_lambda_name}: {e}")
+            raise e
+        
         return {
-            "statusCode": 200,
-            "body": f"Successfully processed and uploaded master table with {len(master_df)} rows."
+            "statusCode": 200, 
+            "body": json.dumps("Trusted finished, Enriched triggered.")
         }
     except Exception as e:
         print(f"❌ Error: {e}")

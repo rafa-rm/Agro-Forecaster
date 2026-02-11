@@ -20,7 +20,7 @@ data "archive_file" "lambda_code" {
 resource "aws_lambda_function" "agro_scraper" {
   function_name = "agro-data-ingestion"
   description   = "Daily ingestion of Yahoo finance data"
-  role          = aws_iam_role.lambda_exec_role.arn
+  role          = aws_iam_role.raw_role.arn
   handler       = "get_yf_data.lambda_handler" 
   runtime       = "python3.14"
   timeout       = 600 
