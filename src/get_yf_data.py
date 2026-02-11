@@ -21,6 +21,8 @@ my_config = Config(
 s3 = boto3.client('s3', config=my_config)
 bucket_name = os.environ['S3_BUCKET_NAME']
 
+lambda_client = boto3.client('lambda')
+
 
 def upload_single_row(name: str, row):
     
@@ -136,7 +138,21 @@ def lambda_handler(event, context):
             success = process_daily_yahoo_data(ticker["name"], ticker["symbol"])
             results[ticker["name"]] = "Success" if success else "Failed"
 
+    
+    next_lambda_name = 'agro-data-processor' 
+    
+    print(f"Triggering {next_lambda_name}...")
+    try:
+        lambda_client.invoke(
+            FunctionName=next_lambda_name,
+            InvocationType='Event',  
+            Payload=json.dumps({})  
+        )
+    except Exception as e:
+        print(f"❌ Failed to trigger {next_lambda_name}: {e}")
+        raise e
+
     return {
-        'statusCode': 200,
-        'body': json.dumps(results)
+        "statusCode": 200, 
+        "body": json.dumps("Raw finished, Trusted triggered.")
     }
