@@ -16,7 +16,7 @@ my_config = Config(
 
 s3 = boto3.client('s3', config=my_config)
 BUCKET_NAME = os.environ['S3_BUCKET_NAME']
-
+MASTER_KEY = "trusted/agro_master_table.parquet"
 lambda_client = boto3.client('lambda')
 
 def cleanup_tmp():
@@ -32,20 +32,23 @@ def cleanup_tmp():
         except Exception as e:
             print(f"⚠️ Failed to delete {file_path}. Reason: {e}")
 
-def process_single_obj(obj, prefix_name: str) -> pd.DataFrame:
-    key = obj['Key']
+def process_single_key(key: str, prefix_name: str) -> pd.DataFrame:
+    """
+    Downloads and processes a single Parquet file given its Key (String).
+    """
     if not key.endswith('.parquet'):
         print(f"⚠️ Skipping non-parquet file: {key}")
         return None
 
     local_path = f"/tmp/{key.replace('/', '_')}"
-    s3.download_file(BUCKET_NAME, key, local_path)
     try:
+        s3.download_file(BUCKET_NAME, key, local_path)
         df = pd.read_parquet(local_path)
         if 'Date' not in df.columns:
             print(f"⚠️ 'Date' column missing in {key}. Skipping file.")
             return None
-        if 'Open' in df.columns and 'High' in df.columns and 'Low' in df.columns:
+        df['Date'] = df['Date'].astype(str)
+        if set(['Open', 'High', 'Low']).issubset(df.columns):
             df['Open'] = df['Open'].replace(0, pd.NA) 
             df['Volatility'] = (df['High'] - df['Low']) / df['Open']
         else:
@@ -56,107 +59,126 @@ def process_single_obj(obj, prefix_name: str) -> pd.DataFrame:
         return df
     except Exception as e:
         print(f"Error processing file {key}: {e}")
+        return None
     finally:
         if os.path.exists(local_path):
             os.remove(local_path)
 
-def get_and_process_data(commodity_name: str, prefix_name: str) -> pd.DataFrame:
-    """
-    1. Lists all parquet files for a commodity (e.g., 'soybean').
-    2. Downloads them to /tmp.
-    3. Reads, Calculates Volatility, and Renames columns.
-    """
-    paginator = s3.get_paginator('list_objects_v2')
-    pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix=f"raw/{commodity_name}/")
-    
-    all_dfs = []
-    objects_to_process = []
-    for page in pages:
-        if 'Contents' in page:
-            objects_to_process.extend(page['Contents'])
-            
-    if not objects_to_process:
-        print(f"⚠️ No files found for {commodity_name}")
+def process_file_list(file_keys: list, prefix_name: str) -> pd.DataFrame:
+    if not file_keys:
         return pd.DataFrame()
+    
+    print(f"   Processing {len(file_keys)} files for {prefix_name}...")
+    all_dfs = []
     
     try:
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            results_iterator = executor.map(lambda obj: process_single_obj(obj, prefix_name), objects_to_process)
-            clean_results = [res for res in results_iterator if res is not None and not res.empty]
-            all_dfs.extend(clean_results)
+            results = executor.map(lambda key: process_single_key(key, prefix_name), file_keys)
+            for res in results:
+                if res is not None and not res.empty:
+                    all_dfs.append(res)
 
-            print(f"Finished. Processed {len(objects_to_process)} items.")
+            print(f"Finished. Processed {len(file_keys)} items.")
     except Exception as e:
         print(f"Error during parallel upload for {prefix_name}: {e}")
+        return pd.DataFrame()
     if not all_dfs:
-        print(f"❌ No data found for {commodity_name}")
+        print(f"❌ No data found for {prefix_name}")
         return pd.DataFrame() 
     
-
     # Combine all partitions for this commodity
     full_df = pd.concat(all_dfs, ignore_index=True)
-    
     # Remove duplicates if any
     full_df = full_df.drop_duplicates(subset=['Date'])
-    
     # Set Date as Index for the final Merge step
     full_df.set_index('Date', inplace=True)
 
-
     return full_df
-    
+
+
+def load_current_master() -> pd.DataFrame:
+    """Downloads the existing Master Table from S3."""
+    path = "/tmp/current_master.parquet"
+    try:
+        s3.download_file(BUCKET_NAME, MASTER_KEY, path)
+        df = pd.read_parquet(path)
+        
+        # Ensure Master also treats Date as String
+        df['Date'] = df['Date'].astype(str)
+        df.set_index('Date', inplace=True)
+        
+        print(f"📖 Loaded Master Table: {len(df)} rows.")
+        return df
+    except Exception:
+        print("⚠️ No existing Master Table found. Starting fresh.")
+        return pd.DataFrame()
 
 def lambda_handler(event, context):
-    """ETL Process for Trusted Layer:
-    1. For each commodity, list and download all raw parquet files.
-    2. Process each file to calculate volatility and rename columns.
-    3. Merge all commodities into a master DataFrame.
-    4. Sort by Date and fill missing values.
-    5. Save the final DataFrame as a parquet file and upload to S3.
-    """
     print("Starting Trusted layer ETL...")
-
+    cleanup_tmp()
     try:
-        # 1. Define commodities and their corresponding prefixes
-        commodities = {
-            "soybean": "soy", 
-            "corn": "corn", 
-            "wheat": "wheat", 
-            "oil": "oil", 
-            "usd_brl": "usdbrl"
+        # 1. Get the manifest
+        manifest_key = event.get('manifest_key')
+        if manifest_key:
+            print(f"📥 Loading manifest from {manifest_key}...")
+            obj = s3.get_object(Bucket=BUCKET_NAME, Key=manifest_key)
+            all_files_list = json.loads(obj['Body'].read())
+        else:
+            print("⚠️ No manifest provided. Exiting.")
+            return {"statusCode": 200, "body": "No data to process"}
+        
+        # 2. Group Files by Commodity
+        commodities_map = {
+            "soybean": "soy", "corn": "corn", "wheat": "wheat", 
+            "oil": "oil", "usd_brl": "usdbrl"
         }
+        grouped_files = {k: [] for k in commodities_map.keys()}
+        
+        for file_key in all_files_list:
+            for comm_name in commodities_map.keys():
+                if f"raw/{comm_name}/" in file_key:
+                    grouped_files[comm_name].append(file_key)
+                    break
 
-        dfs_to_merge = []
-
-        # 2. Process each commodity
-        for folder, prefix in commodities.items():
-            df = get_and_process_data(folder, prefix)
-            if not df.empty:
-                dfs_to_merge.append(df)
+        # 3. Process new data
+        dfs_new_batch = []
+        for comm_name, prefix in commodities_map.items():
+            keys = grouped_files.get(comm_name, [])
+            if keys:
+                df_comm = process_file_list(keys, prefix)
+                if not df_comm.empty:
+                    dfs_new_batch.append(df_comm)
         
         # 3. Merge DataFrames
-        if not dfs_to_merge:
+        if not dfs_new_batch:
             print("No data to merge. Exiting.")
-            return {"statusCode": 500, "body": "No data to merge."}
+            return {"statusCode": 500, "body": "No valid data extracted."}
 
         print("Merging data...")
-        master_df = pd.concat(dfs_to_merge, axis=1, join='outer')
+        df_delta = pd.concat(dfs_new_batch, axis=1, join='outer')
+        df_master = load_current_master()
+
+        if df_master.empty:
+            df_final = df_delta
+        else:
+            df_combined = pd.concat([df_master, df_delta])
+            df_final = df_combined.groupby(df_combined.index).last()
 
         # 4. Sort and Fill Missing Values
-        master_df.sort_index(inplace=True)
+        df_final.sort_index(inplace=True)
 
         # If weekend/holiday, use Friday's price
-        master_df.ffill(inplace=True)
+        df_final.ffill(inplace=True)
 
         # If there are still missing values at the beginning of the dataset, backfill them
-        master_df.bfill(inplace=True)
+        df_final.bfill(inplace=True)
 
-        master_df.reset_index(inplace=True)
+        df_final.reset_index(inplace=True)
 
         # 5. Save to CSV and upload to S3
         output_path = "/tmp/agro_master_table.parquet"
-        print(f"💾 Saving {len(master_df)} rows to {output_path}...")
-        master_df.to_parquet(output_path, index=False)
+        print(f"💾 Saving {len(df_final)} rows to {output_path}...")
+        df_final.to_parquet(output_path, index=False)
 
         s3_key = "trusted/agro_master_table.parquet"
         s3.upload_file(output_path, BUCKET_NAME, s3_key)
