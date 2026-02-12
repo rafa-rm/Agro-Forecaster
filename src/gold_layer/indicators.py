@@ -19,5 +19,4 @@ def get_rsi(series, period=14):
     rs = ema_up / ema_down
     rsi = 100 - (100 / (1 + rs))
     
-    # Handle division by zero 
-    return rsi.fillna(50) # Neutral RSI for the first few NaN rows
+    return rsi
