@@ -32,6 +32,33 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      - name: Build Lambda Layer
+        working-directory: .
+        run: |
+          echo "Installing dependencies for AWS Lambda (Python 3.14)..."
+          
+          # 1. Create the directory structure inside 'layer'
+          # AWS expects libraries to be in a folder named 'python' at the root of the zip
+          mkdir -p layer/python
+          
+          # 2. Install dependencies directly into 'layer/python'
+          pip install \
+            --target=layer/python \
+            --python-version 3.14 \
+            --only-binary=:all: --upgrade \
+            -r src/requirements.txt
+          
+          # 3. Zip it up
+          cd layer
+          echo "Zipping contents of layer/python..."
+          # This creates the zip with the 'python/' folder at the root
+          zip -r ../src/agro_forecaster_layer.zip python/
+          cd ..
+          
+          echo "✅ Zip created at src/agro_forecaster_layer.zip"
+          # Verify the size (if it is < 1MB, something is wrong)
+          ls -lh src/agro_forecaster_layer.zip
+
       # 2. Login to AWS using OIDC
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2

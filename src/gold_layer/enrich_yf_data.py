@@ -72,7 +72,7 @@ def lambda_handler(event, context):
                .pipe(clean_nans)
               )
               
-    print(f"✅ Features Created. Final Shape: {df_gold.shape}")
+    print(f"✅ Features Created! Final Shape: {df_gold.shape}!")
     
 
     # 4. Save and Upload to S3

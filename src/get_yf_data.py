@@ -72,7 +72,7 @@ def process_yahoo_data(name: str,
         failed_count = len(results) - len(clean_keys)
         if failed_count > 0:
             print(f"⚠️ {failed_count} uploads failed for {name}.")
-        print(f"Finished. Processed {len(clean_keys)} items.")
+        print(f"Finished. Processed {len(clean_keys)} items!")
         return clean_keys
     except Exception as e:
         print(f"Error during parallel upload for {name}: {e}")
@@ -129,11 +129,11 @@ def lambda_handler(event, context):
 
         return {
             "statusCode": 200, 
-            "body": json.dumps("Raw finished, Trusted triggered.")
+            "body": json.dumps("Raw finished, Trusted triggered!")
         }
     else:
         print("❌ No data processed successfully.")
         return {
             "statusCode": 500, 
-            "body": json.dumps("No data processed successfully.")
+            "body": json.dumps("No data processed successfully!")
         }

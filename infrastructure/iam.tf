@@ -32,11 +32,13 @@ resource "aws_iam_role_policy" "raw_permissions" {
     Statement = [
       {
         Effect = "Allow", 
-        Action = ["s3:PutObject", "s3:ListBucket", "s3:GetObject"],
-        Resource = [
-          aws_s3_bucket.agro_data_lake.arn,       
-          "${aws_s3_bucket.agro_data_lake.arn}/*"
-        ] 
+        Action = ["s3:PutObject"],
+        Resource = ["${aws_s3_bucket.agro_data_lake.arn}/raw/*"] 
+      },
+      {
+         Effect = "Allow",
+         Action = ["s3:ListBucket"], 
+         Resource = [aws_s3_bucket.agro_data_lake.arn]
       },
       {
         Effect = "Allow", Action = "lambda:InvokeFunction",
@@ -59,14 +61,18 @@ resource "aws_iam_role_policy" "trusted_permissions" {
     Statement = [
       {
         Effect = "Allow", 
-        Action = [
-          "s3:ListBucket",  
-          "s3:GetObject"    
-        ],
-        Resource = [
-          aws_s3_bucket.agro_data_lake.arn,       
-          "${aws_s3_bucket.agro_data_lake.arn}/*" 
-        ]
+        Action = ["s3:GetObject"],
+        Resource = ["${aws_s3_bucket.agro_data_lake.arn}/raw/*"] 
+      },
+      {
+        Effect = "Allow", 
+        Action = ["s3:GetObject"],
+        Resource = ["${aws_s3_bucket.agro_data_lake.arn}/trusted/*"] 
+      },
+      {
+        Effect = "Allow", 
+        Action = ["s3:ListBucket"],
+        Resource = [aws_s3_bucket.agro_data_lake.arn]
       },
       {
         Effect = "Allow", Action = ["s3:PutObject"],

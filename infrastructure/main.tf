@@ -34,21 +34,21 @@ resource "aws_s3_object" "code_get_yf_data_zip" {
   bucket = aws_s3_bucket.lambda_code_bucket.id
   key    = "code/get_yf_data.zip"
   source = data.archive_file.lambda_code.output_path
-  etag   = data.archive_file.lambda_code.output_base64sha256
+  etag   = data.archive_file.lambda_code.output_md5
 }
 
 resource "aws_s3_object" "code_process_yf_data_zip" {
   bucket = aws_s3_bucket.lambda_code_bucket.id
   key    = "code/process_yf_data.zip"
   source = data.archive_file.lambda_code_process_yf_data.output_path
-  etag   = data.archive_file.lambda_code_process_yf_data.output_base64sha256
+  etag   = data.archive_file.lambda_code_process_yf_data.output_md5
 }
 
 resource "aws_s3_object" "code_gold_layer_zip" {
   bucket = aws_s3_bucket.lambda_code_bucket.id
   key    = "layers/gold_layer.zip"
   source = data.archive_file.gold_layer.output_path
-  etag   = data.archive_file.gold_layer.output_base64sha256
+  etag   = data.archive_file.gold_layer.output_md5
   
 }
 

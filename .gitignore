@@ -29,3 +29,6 @@ src/python/*
 
 # Parque File
 *.parquet
+
+# Zip files
+*.zip
