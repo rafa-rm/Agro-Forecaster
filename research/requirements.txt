@@ -1,0 +1,14 @@
+# Data Processing & ML
+pandas
+numpy
+scikit-learn
+boto3
+botocore[crt]
+tensorflow==2.21.0
+
+# MLOps & Exploration
+mlflow
+jupyterlab
+matplotlib
+seaborn
+plotly

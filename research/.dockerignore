@@ -1,0 +1,14 @@
+data/
+mlruns/
+mlflow_data/
+artifacts/
+
+.venv/
+venv/
+env/
+
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+.env

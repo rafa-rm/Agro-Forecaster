@@ -32,3 +32,6 @@ src/python/*
 
 # Zip files
 *.zip
+
+# --- Environment Variables ---
+.env
