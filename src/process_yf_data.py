@@ -164,16 +164,26 @@ def lambda_handler(event, context):
             df_combined = pd.concat([df_master, df_delta])
             df_final = df_combined.groupby(df_combined.index).last()
 
-        # 4. Sort and Fill Missing Values
+        # 4. Sort, Reindex, and Fill Missing Values
+
+        df_final.index = pd.to_datetime(df_final.index)
         df_final.sort_index(inplace=True)
 
-        # If weekend/holiday, use Friday's price
+        full_date_range = pd.date_range(start=df_final.index.min(), 
+                                        end=df_final.index.max(), 
+                                        freq='D') # 'D' stands for Daily frequency
+        
+        # This explicitly injects empty rows for weekends and holidays!
+        df_final = df_final.reindex(full_date_range)
+
         df_final.ffill(inplace=True)
 
         # If there are still missing values at the beginning of the dataset, backfill them
         df_final.bfill(inplace=True)
 
+        df_final.index.name = 'Date'
         df_final.reset_index(inplace=True)
+        df_final['Date'] = df_final['Date'].astype(str)
 
         # 5. Save to CSV and upload to S3
         output_path = "/tmp/agro_master_table.parquet"
