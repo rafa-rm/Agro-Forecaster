@@ -1,0 +1,14 @@
+[experiment]
+targets = ["soy_Close", "corn_Close", "wheat_Close"]
+time_steps = [7, 30]
+horizon_steps = 30
+epochs = 100
+batch_size = 32
+train_percentage = 0.75
+validation_percentage = 0.15
+
+[hyperparameters]
+learning_rate = [0.001]
+cnn_filters = [64, 32, 0]    
+lstm_units = [64, 32]     
+dense_units = [32, 0]    
