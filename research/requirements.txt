@@ -6,6 +6,7 @@ boto3
 botocore[crt]
 tensorflow==2.21.0
 tabulate==0.10.0
+python-dotenv==1.2.2
 
 # MLOps & Exploration
 mlflow
