@@ -17,12 +17,25 @@ __pycache__/
 .aws/
 .DS_Store
 
-# --- Jupyter Notebooks ---
-*.ipynb
+# --- Jupyter Notebooks (tests) ---
+.ipynb_checkpoints/
+notebooks_tests/
 
 # --- Generated Artifacts ---
 # Ignore the zip created by Terraform (Logic), but KEEP your layer zip
 infrastructure/*.zip
+
+
+# --- Models ---
+models/
+
+# --- Scalers (joblib) ---
+saved_scalers/
+
+# --- Mlflow ---
+mlruns/
+mlflow_data/
+*mlflow.db
 
 # Python Layer
 src/python/*
