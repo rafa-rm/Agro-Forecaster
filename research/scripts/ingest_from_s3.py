@@ -1,11 +1,13 @@
-# src/ingest_from_s3.py
 import os
 import boto3
+from dotenv import load_dotenv, find_dotenv
+
 
 def download_medallion_data():
     print("Connecting to AWS S3...")
     s3_client = boto3.client('s3')
-    
+    load_dotenv(find_dotenv())
+
     bucket_name = os.getenv('AGRO_BUCKET_NAME')
     
     # Mapping the AWS S3 keys to your local Docker volume paths.
