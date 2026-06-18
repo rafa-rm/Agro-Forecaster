@@ -23,6 +23,7 @@ resource "aws_s3_bucket" "lambda_code_bucket" {
   }
 }
 
+
 resource "aws_s3_object" "layer_zip" {
   bucket = aws_s3_bucket.lambda_code_bucket.id   
   key    = "layers/agro_forecaster_layer.zip"
