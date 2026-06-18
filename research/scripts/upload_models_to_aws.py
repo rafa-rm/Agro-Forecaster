@@ -15,13 +15,11 @@ def upload_production_models():
 
     commodities = ["Corn", "Wheat", "Soy"]
     windows = [7, 30]
-    
     s3_prefix = "deployable_models/" 
 
     for commodity in commodities:
         for window in windows:
             experiment_name = f"{commodity}_{window}"
-            
             local_path = os.path.join("models", "production", experiment_name, "best_model.keras")
             
             if not os.path.exists(local_path):
@@ -29,27 +27,48 @@ def upload_production_models():
                 continue
             
             print(f"🔄 Converting {experiment_name} to LiteRT format...")
+            tflite_local_path = local_path.replace(".keras", ".tflite")
             
             try:
                 # 1. Load the local Keras model
                 model = tf.keras.models.load_model(local_path)
                 
-                # 2. Convert to LiteRT (TFLite) using pure built-in operators
-                converter = tf.lite.TFLiteConverter.from_keras_model(model)
+                # 2. Extract operational dimensions
+                lookback = window
+                first_layer = model.layers[0]
+                
+                # Bypasses Keras 3 API limits by reading the compiled weight shapes directly
+                if hasattr(first_layer, 'kernel'):
+                    weights_shape = first_layer.kernel.shape
+                    # Conv1D kernel shape: (kernel_size, input_dim, filters)
+                    # LSTM kernel shape: (input_dim, 4 * units)
+                    features = weights_shape[1] if len(weights_shape) == 3 else weights_shape[0]
+                else:
+                    features = 1 # Fallback default for univariate configurations
+                
+                # 3. Freeze the batch size to 1 using a concrete trace function
+                @tf.function
+                def run_inference(tensor_input):
+                    return model(tensor_input)
+
+                concrete_func = run_inference.get_concrete_function(
+                    tf.TensorSpec(shape=[1, lookback, features], dtype=tf.float32)
+                )
+                
+                # 4. Pass the static concrete graph to the converter
+                converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
                 converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
                 converter._experimental_lower_tensor_list_ops = True
                 
                 tflite_model = converter.convert()
                 
-                # 3. Create a temporary local .tflite file
-                tflite_local_path = local_path.replace(".keras", ".tflite")
+                # 5. Save the temporary local .tflite file
                 with open(tflite_local_path, "wb") as f:
                     f.write(tflite_model)
                 
-                # 4. Target the updated .tflite path for your AWS Lambda
                 s3_key = f"{s3_prefix}{experiment_name}/best_model.tflite"
                 
-                print(f"☁️ Uploading {experiment_name}...")
+                print(f"☁️ Uploading {experiment_name} (Shape: [1, {lookback}, {features}])...")
                 s3_client.upload_file(tflite_local_path, bucket_name, s3_key)
                 print(f"   ✅ Successfully saved to s3://{bucket_name}/{s3_key}")
                                 

@@ -57,7 +57,6 @@ jobs:
 
           find layer/python -type d -name "__pycache__" -exec rm -rf {} +
           find layer/python -type d -name "tests" -exec rm -rf {} +
-          find layer/python -type d -name "*.dist-info" -exec rm -rf {} +
           find layer/python -name "*.pyc" -delete
           
           cd layer
@@ -80,7 +79,6 @@ jobs:
           
           find ml_layer/python -type d -name "__pycache__" -exec rm -rf {} +
           find ml_layer/python -type d -name "tests" -exec rm -rf {} +
-          find ml_layer/python -type d -name "*.dist-info" -exec rm -rf {} +
           find ml_layer/python -name "*.pyc" -delete
 
           cd ml_layer
