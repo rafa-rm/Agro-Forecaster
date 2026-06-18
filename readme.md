@@ -12,7 +12,7 @@ The pipeline follows a Bronze (Raw) $\rightarrow$ Silver (Trusted) $\rightarrow$
 
 **Source:** Yahoo Finance API (yfinance).
 
-**Infrastructure:** AWS Lambda (Containerized Python).
+**Infrastructure:** AWS Lambda.
 
 **Optimization**:
 
