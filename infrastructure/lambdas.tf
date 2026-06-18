@@ -100,3 +100,47 @@ resource "aws_lambda_function" "agro_enricher" {
 }
 
 
+# --- 4. Prediction LAYER dependencies ---
+resource "aws_lambda_layer_version" "tflite_layer" {
+  layer_name          = "tflite-inference-runtime"
+  description         = "Modern LiteRT (TensorFlow Lite) edge runtime"
+  compatible_runtimes = ["python3.14"]
+
+  s3_bucket        = aws_s3_bucket.lambda_code_bucket.id
+  s3_key           = aws_s3_object.tflite_layer_zip.key
+  source_code_hash = filebase64sha256("../src/tflite_layer.zip")
+}
+
+# --- 5.PREDICTION LAMBDA FUNCTION ---
+
+data "archive_file" "predictor_code" {
+  type        = "zip"
+  source_file = "../src/predict_prices.py"  
+  output_path = "${path.module}/predict_prices.zip"
+}
+
+resource "aws_lambda_function" "agro_predictor" {
+  function_name = "agro-price-forecasting"
+  description   = "Daily batch execution of commodity price forecasting models using LiteRT"
+  role          = aws_iam_role.raw_role.arn 
+  handler       = "predict_prices.lambda_handler" 
+  runtime       = "python3.14"
+  timeout       = 300 
+  memory_size   = 512 
+
+  s3_bucket        = aws_s3_bucket.lambda_code_bucket.id
+  s3_key           = aws_s3_object.code_predict_prices_zip.key
+  source_code_hash = data.archive_file.predictor_code.output_base64sha256
+
+  # Combines your Data Utilities Layer (Pandas/Parquet) and the ML Runtime Layer (LiteRT)
+  layers = [
+    aws_lambda_layer_version.agro_layer.arn,
+    aws_lambda_layer_version.tflite_layer.arn
+  ]
+
+  environment {
+    variables = {
+      S3_BUCKET_NAME = aws_s3_bucket.agro_data_lake.id
+    }
+  }
+}
