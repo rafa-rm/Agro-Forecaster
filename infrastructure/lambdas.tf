@@ -122,7 +122,7 @@ data "archive_file" "predictor_code" {
 resource "aws_lambda_function" "agro_predictor" {
   function_name = "agro-price-forecasting"
   description   = "Daily batch execution of commodity price forecasting models using LiteRT"
-  role          = aws_iam_role.raw_role.arn 
+  role          = aws_iam_role.predictor_role.arn
   handler       = "predict_prices.lambda_handler" 
   runtime       = "python3.14"
   timeout       = 300 
