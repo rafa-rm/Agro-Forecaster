@@ -52,6 +52,22 @@ resource "aws_s3_object" "code_gold_layer_zip" {
   
 }
 
+# --- Lambda prediction Layer zip files ---
+
+resource "aws_s3_object" "tflite_layer_zip" {
+  bucket = aws_s3_bucket.lambda_code_bucket.id
+  key    = "layers/tflite_layer.zip"
+  source = "../src/tflite_layer.zip" 
+  etag   = filemd5("../src/tflite_layer.zip")
+}
+
+resource "aws_s3_object" "code_predict_prices_zip" {
+  bucket = aws_s3_bucket.lambda_code_bucket.id
+  key    = "code/predict_prices.zip"
+  source = data.archive_file.predictor_code.output_path
+  etag = data.archive_file.predictor_code.output_md5
+}
+
 resource "aws_scheduler_schedule" "agro_scraper_schedule" {
   name        = "agro-scraper-schedule"
   description = "Schedule for Agro Scraper Lambda"

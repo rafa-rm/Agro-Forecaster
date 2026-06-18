@@ -195,22 +195,26 @@ def lambda_handler(event, context):
         print(f"✅ Uploaded cleaned data to s3://{BUCKET_NAME}/{s3_key}")
 
 
-        next_lambda_name = 'agro-data-enricher' 
+        downstream_lambdas = [
+            'agro-data-enricher',       
+            'agro-price-forecasting'    
+        ]
     
-        print(f"Triggering {next_lambda_name}...")
-        try:
-            lambda_client.invoke(
-                FunctionName=next_lambda_name,
-                InvocationType='Event', 
-                Payload=json.dumps({})
-            )
-        except Exception as e:
-            print(f"❌ Failed to trigger {next_lambda_name}: {e}")
-            raise e
+        for lambda_name in downstream_lambdas:
+            print(f"🚀 Triggering downstream execution: {lambda_name}...")
+            try:
+                lambda_client.invoke(
+                    FunctionName=lambda_name,
+                    InvocationType='Event', # Asynchronous call: returns immediately without waiting
+                    Payload=json.dumps({})
+                )
+            except Exception as e:
+                print(f"❌ Failed to trigger {lambda_name}: {e}")
+                continue 
         
         return {
-            "statusCode": 200, 
-            "body": json.dumps("Trusted finished, Enriched triggered.")
+            'statusCode': 200, 
+            'body': json.dumps("Trusted processing complete. Downstream parallel workflows triggered.")
         }
     except Exception as e:
         print(f"❌ Error: {e}")
