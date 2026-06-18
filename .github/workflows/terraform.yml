@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'infrastructure/**' # Only run when infra code changes
-      - 'src/**'            # Or when lambda code changes
+      - 'infrastructure/**'
+      - 'src/**'
   pull_request:
     branches:
       - main
@@ -15,64 +15,82 @@ on:
       - 'src/**'
 
 permissions:
-  id-token: write # Required for OIDC 
+  id-token: write # Required for OIDC
   contents: read  # Required to checkout code
 
 jobs:
   terraform:
     name: "Terraform Apply"
     runs-on: ubuntu-latest
+    
     defaults:
       run:
         shell: bash
-        working-directory: ./infrastructure # Pointing to .tf files
+        working-directory: ./infrastructure
+
+    # Global job-level variables to keep steps DRY
+    env:
+      TF_VAR_github_name: ${{ secrets.TF_VAR_github_name }}
+      TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+      TF_VAR_environment: ${{ secrets.TF_VAR_environment }}
+      TF_VAR_agro_bucket_name: ${{ secrets.TF_VAR_agro_bucket_name }}
+      TF_VAR_aws_region: ${{ secrets.TF_VAR_aws_region }}
 
     steps:
-      # 1. Get the code
+      # 1. Get the code (Upgraded to v7)
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
+      # 2. Build Lambda Layer (Python 3.14)
       - name: Build Lambda Layer
         working-directory: .
         run: |
           echo "Installing dependencies for AWS Lambda (Python 3.14)..."
-          
-          # 1. Create the directory structure inside 'layer'
-          # AWS expects libraries to be in a folder named 'python' at the root of the zip
           mkdir -p layer/python
           
-          # 2. Install dependencies directly into 'layer/python'
           pip install \
             --target=layer/python \
             --python-version 3.14 \
             --only-binary=:all: --upgrade \
             -r src/requirements.txt
           
-          # 3. Zip it up
           cd layer
-          echo "Zipping contents of layer/python..."
-          # This creates the zip with the 'python/' folder at the root
           zip -r ../src/agro_forecaster_layer.zip python/
           cd ..
-          
-          echo "✅ Zip created at src/agro_forecaster_layer.zip"
-          # Verify the size (if it is < 1MB, something is wrong)
-          ls -lh src/agro_forecaster_layer.zip
+          rm -rf layer # Clean up directory after build
 
-      # 2. Login to AWS using OIDC
+      # 3. Build LiteRT ML Layer (Python 3.14)
+      - name: Build LiteRT ML Layer
+        working-directory: .
+        run: |
+          echo "Installing LiteRT dependencies for AWS Lambda (Python 3.14)..."
+          mkdir -p ml_layer/python
+          
+          pip install \
+            --target=ml_layer/python \
+            --python-version 3.14 \
+            --only-binary=:all: --upgrade \
+            ai-edge-litert
+          
+          cd ml_layer
+          zip -r ../src/tflite_layer.zip python/
+          cd ..
+          rm -rf ml_layer # Clean up directory after build
+
+      # 4. Login to AWS using OIDC (Upgraded to v6.1.0)
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v6.1.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.TF_VAR_aws_region }}
 
-      # 3. Install Terraform
+      # 5. Install Terraform (Upgraded to v4)
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.5.0
 
-      # 4. Initialize (Connect to S3 Backend dynamically)
+      # 6. Initialize
       - name: Terraform Init
         run: |
           terraform init \
@@ -81,25 +99,11 @@ jobs:
             -backend-config="region=${{ secrets.TF_VAR_aws_region }}" \
             -backend-config="encrypt=true"
 
-      # 5. Plan
+      # 7. Plan (Saves execution plan securely to an output file)
       - name: Terraform Plan
-        run: terraform plan -input=false
-        env:
-          # Maps GitHub Secret -> Terraform Variable
-          TF_VAR_github_name: ${{ secrets.TF_VAR_github_name }}
-          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
-          TF_VAR_environment: ${{ secrets.TF_VAR_environment }}
-          TF_VAR_agro_bucket_name: ${{ secrets.TF_VAR_agro_bucket_name }}
-          TF_VAR_aws_region: ${{ secrets.TF_VAR_aws_region }}
+        run: terraform plan -input=false -out=tfplan
 
-      # 6. Apply (Deploy to Cloud)
-      # Only runs on 'main' branch
+      # 8. Apply (Executes the precise plan generated in Step 7)
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve -input=false
-        env:
-          TF_VAR_github_name: ${{ secrets.TF_VAR_github_name }}
-          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
-          TF_VAR_environment: ${{ secrets.TF_VAR_environment }}
-          TF_VAR_agro_bucket_name: ${{ secrets.TF_VAR_agro_bucket_name }}
-          TF_VAR_aws_region: ${{ secrets.TF_VAR_aws_region }}
+        run: terraform apply -input=false tfplan
