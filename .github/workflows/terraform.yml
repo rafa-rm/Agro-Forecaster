@@ -114,5 +114,5 @@ jobs:
 
       # 8. Apply (Executes the precise plan generated in Step 7)
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: terraform apply -input=false tfplan
