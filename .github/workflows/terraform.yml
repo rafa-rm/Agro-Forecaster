@@ -53,6 +53,11 @@ jobs:
             --python-version 3.14 \
             --only-binary=:all: --upgrade \
             -r src/requirements.txt
+
+          find layer/python -type d -name "__pycache__" -exec rm -rf {} +
+          find layer/python -type d -name "tests" -exec rm -rf {} +
+          find layer/python -type d -name "*.dist-info" -exec rm -rf {} +
+          find layer/python -name "*.pyc" -delete
           
           cd layer
           zip -r ../src/agro_forecaster_layer.zip python/
@@ -72,6 +77,11 @@ jobs:
             --only-binary=:all: --upgrade \
             ai-edge-litert
           
+          find ml_layer/python -type d -name "__pycache__" -exec rm -rf {} +
+          find ml_layer/python -type d -name "tests" -exec rm -rf {} +
+          find ml_layer/python -type d -name "*.dist-info" -exec rm -rf {} +
+          find ml_layer/python -name "*.pyc" -delete
+
           cd ml_layer
           zip -r ../src/tflite_layer.zip python/
           cd ..
