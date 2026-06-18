@@ -23,6 +23,11 @@ resource "aws_iam_role" "enriched_role" {
   assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
 }
 
+resource "aws_iam_role" "predictor_role" {
+  name               = "agro-predictor-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
+}
+
 
 resource "aws_iam_role_policy" "raw_permissions" {
   name = "raw-permissions"
@@ -80,7 +85,10 @@ resource "aws_iam_role_policy" "trusted_permissions" {
       },
       {
         Effect = "Allow", Action = "lambda:InvokeFunction",
-        Resource = aws_lambda_function.agro_enricher.arn
+        Resource = [
+          aws_lambda_function.agro_enricher.arn,
+          aws_lambda_function.agro_predictor.arn
+        ]
       },
       {
         Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
@@ -106,6 +114,40 @@ resource "aws_iam_role_policy" "enriched_permissions" {
       },
       {
         Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "predictor_permissions" {
+  name = "predictor-permissions"
+  role = aws_iam_role.predictor_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject"]
+        Resource = [
+          "${aws_s3_bucket.agro_data_lake.arn}/trusted/*",
+          "${aws_s3_bucket.agro_data_lake.arn}/saved_scalers/*",
+          "${aws_s3_bucket.agro_data_lake.arn}/deployable_models/*"
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
+        Resource = ["${aws_s3_bucket.agro_data_lake.arn}/forecasts/*"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = [aws_s3_bucket.agro_data_lake.arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "*"
       }
     ]
