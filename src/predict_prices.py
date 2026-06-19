@@ -20,11 +20,18 @@ def load_json_scaler_params(commodity):
     with open(local_scaler_path, 'r') as f:
         return json.load(f)
 
+def forward_scale_features(raw_features, scaler_params):
+    """Applies your custom min-max scaling to the raw features before inference."""
+    min_val = np.array(scaler_params['min'])
+    max_val = np.array(scaler_params['max'])
+    denom = max_val - min_val
+    denom[denom == 0] = 1.0 # Guardrail against division by zero
+    return (raw_features - min_val) / denom
+
 def inverse_scale_predictions(scaled_preds, scaler_params):
     """Reverses your custom min-max calculation back to original currency prices."""
     min_val = scaler_params['min'][0]
     max_val = scaler_params['max'][0]
-    # Works seamlessly with multi-step NumPy arrays via array broadcasting
     return scaled_preds * (max_val - min_val) + min_val
 
 def lambda_handler(event, context):
@@ -37,7 +44,7 @@ def lambda_handler(event, context):
     df = pd.read_parquet(local_data_path)
     
     commodities = ["Corn", "Wheat", "Soy"]
-    windows = [7, 30] # Dictates the lookback window configuration to pull the correct model
+    windows = [7, 30] 
     forecast_results = []
 
     # 2. Iterate through the Model Evaluation Matrix
@@ -55,7 +62,6 @@ def lambda_handler(event, context):
             local_model_path = f"/tmp/{experiment_name}.tflite"
             
             try:
-                # Download the target model FlatBuffer file from S3
                 s3_client.download_file(BUCKET_NAME, model_key, local_model_path)
                 
                 # 3. Mount the model into the LiteRT Interpreter runtime
@@ -65,9 +71,7 @@ def lambda_handler(event, context):
                 input_details = interpreter.get_input_details()
                 output_details = interpreter.get_output_details()
                 
-                # Extract structural shape expectations from the compiled model
                 lookback_window = input_details[0]['shape'][1] 
-                features = input_details[0]['shape'][2]
                 
                 # 4. Isolate and slice the seed time-series sequence from the Silver table
                 if 'commodity' in df.columns:
@@ -75,35 +79,31 @@ def lambda_handler(event, context):
                 else:
                     commodity_df = df.sort_index()
                 
-                scaled_features = commodity_df[feature_columns].tail(lookback_window).values
+                raw_features = commodity_df[feature_columns].tail(lookback_window).values
                 
-                # Check to confirm the dataframe has enough historical depth for the sequence lookback
-                if len(scaled_features) < lookback_window:
+                if len(raw_features) < lookback_window:
                     print(f"⚠️ Insufficient lookback rows in Silver data for {experiment_name}. Skipping.")
                     continue
+                
+                # 🔥 FIXED: Actually normalize the features before feeding them to LiteRT
+                scaled_features = forward_scale_features(raw_features, scaler_params)
                 
                 # Initialize seed sequence loop array with shape: (1, lookback_window, features)
                 current_seq = np.expand_dims(scaled_features, axis=0).astype(np.float32)
                 
                 # ==========================================
-                # 🔄 5. RECURSIVE INFERENCE LOOP (NumPy Driven)
+                # 🔄 5. RECURSIVE INFERENCE LOOP
                 # ==========================================
                 preds_scaled = []
-                steps = 30 # 🔥 MODIFIED: Always forecast exactly 30 days out for all models
+                steps = 30 
                 
                 for _ in range(steps):
-                    # Inject current context array and execute model
                     interpreter.set_tensor(input_details[0]['index'], current_seq)
                     interpreter.invoke()
-                    next_pred = interpreter.get_tensor(output_details[0]['index']) # Shape: (1, 1)
+                    next_pred = interpreter.get_tensor(output_details[0]['index']) 
                     
-                    # Store step result
                     preds_scaled.append(next_pred[0, 0])
-                    
-                    # Reshape prediction to fit concatenation layout: (1, 1, 1)
                     next_pred_reshaped = np.reshape(next_pred, (1, 1, 1))
-                    
-                    # Core Loop Step: Slice off oldest step index [:, 1:, :] and append fresh forecast array
                     current_seq = np.concatenate([current_seq[:, 1:, :], next_pred_reshaped], axis=1)
                 
                 # ==========================================
@@ -114,8 +114,8 @@ def lambda_handler(event, context):
                 
                 forecast_results.append({
                     "commodity": commodity,
-                    "lookback_days": window, # Tracks which lookback model generated this context
-                    "horizon_days": steps,   # 🔥 MODIFIED: Accurately reflects the 30-day output payload
+                    "lookback_days": window, 
+                    "horizon_days": steps,   
                     "forecast_values": actual_predictions.flatten().tolist(),
                     "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
                 })
@@ -129,12 +129,10 @@ def lambda_handler(event, context):
     with open(local_output_path, 'w') as f:
         json.dump(forecast_results, f, indent=4)
         
-    # Destination A: Overwrite static dashboard path
     static_key = "forecasts/latest_commodity_predictions.json"
     s3_client.upload_file(local_output_path, BUCKET_NAME, static_key)
     print(f"📡 Production Dashboard asset updated: s3://{BUCKET_NAME}/{static_key}")
     
-    # Destination B: Append to date-partitioned historical record
     execution_date = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     historical_key = f"forecasts/historical/execution_date={execution_date}/predictions.json"
     s3_client.upload_file(local_output_path, BUCKET_NAME, historical_key)
