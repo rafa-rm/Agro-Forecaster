@@ -1,4 +1,5 @@
 import os
+import json
 import boto3
 import tensorflow as tf
 from dotenv import load_dotenv, find_dotenv
@@ -15,6 +16,49 @@ def upload_production_models():
 
     commodities = ["Corn", "Wheat", "Soy"]
     windows = [7, 30]
+    
+    # ==========================================
+    # 🔁 STEP 1: ADAPT & UPLOAD MINMAX SCALERS
+    # ==========================================
+    print("\nSynchronizing Scaler Parameters...")
+    for commodity in commodities:
+        local_scaler_path = os.path.join("saved_scalers", commodity, "scaler_params.json")
+        
+        s3_scaler_key = f"saved_scalers/{commodity.lower()}_scaler_params.json"
+        
+        if os.path.exists(local_scaler_path):
+            try:
+                print(f"🔄 Reshaping and uploading scaler parameters for {commodity}...")
+                
+                with open(local_scaler_path, 'r') as f:
+                    local_params = json.load(f)
+                
+                lambda_compatible_params = {
+                    "min": local_params["data_min_"],
+                    "max": local_params["data_max_"],
+                    "columns": [f"{commodity.lower()}_Close"]
+                }
+                
+                temp_upload_path = "temp_lambda_scaler.json"
+                with open(temp_upload_path, 'w') as f:
+                    json.dump(lambda_compatible_params, f)
+                
+                s3_client.upload_file(temp_upload_path, bucket_name, s3_scaler_key)
+                print(f"   ✅ Scaler successfully adapted & saved to s3://{bucket_name}/{s3_scaler_key}")
+                
+                if os.path.exists(temp_upload_path):
+                    os.remove(temp_upload_path)
+                    
+            except Exception as e:
+                print(f"   ❌ Error uploading {commodity} scaler: {e}")
+        else:
+            print(f"⚠️ Warning: Scaler parameters not found at {local_scaler_path}. Skipping.")
+
+
+    # ==========================================
+    # 🔁 STEP 2: CONVERT & UPLOAD LITERT MODELS
+    # ==========================================
+    print("\nSynchronizing LiteRT Models...")
     s3_prefix = "deployable_models/" 
 
     for commodity in commodities:
@@ -33,20 +77,17 @@ def upload_production_models():
                 # 1. Load the local Keras model
                 model = tf.keras.models.load_model(local_path)
                 
-                # 2. Extract operational dimensions
+                # 2. Extract operational dimensions safely
                 lookback = window
                 first_layer = model.layers[0]
                 
-                # Bypasses Keras 3 API limits by reading the compiled weight shapes directly
                 if hasattr(first_layer, 'kernel'):
                     weights_shape = first_layer.kernel.shape
-                    # Conv1D kernel shape: (kernel_size, input_dim, filters)
-                    # LSTM kernel shape: (input_dim, 4 * units)
                     features = weights_shape[1] if len(weights_shape) == 3 else weights_shape[0]
                 else:
-                    features = 1 # Fallback default for univariate configurations
+                    features = 1
                 
-                # 3. Freeze the batch size to 1 using a concrete trace function
+                # 3. Freeze batch size to 1 using a concrete trace function
                 @tf.function
                 def run_inference(tensor_input):
                     return model(tensor_input)
@@ -79,7 +120,7 @@ def upload_production_models():
                 if os.path.exists(tflite_local_path):
                     os.remove(tflite_local_path)
 
-    print("\nAll specified production models have been synchronized with AWS S3!")
+    print("\nAll pipeline execution files have been synchronized with AWS S3!")
 
 if __name__ == "__main__":
     upload_production_models()
