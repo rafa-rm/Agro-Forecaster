@@ -37,7 +37,7 @@ def lambda_handler(event, context):
     df = pd.read_parquet(local_data_path)
     
     commodities = ["Corn", "Wheat", "Soy"]
-    windows = [7, 30] # Dictates both lookback window config and forecasting steps
+    windows = [7, 30] # Dictates the lookback window configuration to pull the correct model
     forecast_results = []
 
     # 2. Iterate through the Model Evaluation Matrix
@@ -89,7 +89,7 @@ def lambda_handler(event, context):
                 # 🔄 5. RECURSIVE INFERENCE LOOP (NumPy Driven)
                 # ==========================================
                 preds_scaled = []
-                steps = window # Predict forward 7 or 30 steps matching your execution strategy
+                steps = 30 # 🔥 MODIFIED: Always forecast exactly 30 days out for all models
                 
                 for _ in range(steps):
                     # Inject current context array and execute model
@@ -114,7 +114,8 @@ def lambda_handler(event, context):
                 
                 forecast_results.append({
                     "commodity": commodity,
-                    "horizon_days": window,
+                    "lookback_days": window, # Tracks which lookback model generated this context
+                    "horizon_days": steps,   # 🔥 MODIFIED: Accurately reflects the 30-day output payload
                     "forecast_values": actual_predictions.flatten().tolist(),
                     "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
                 })
